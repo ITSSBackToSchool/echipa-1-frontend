@@ -1,0 +1,231 @@
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <h1>Book Your Desk</h1>
+    <p>Reserve a seat for your next office visit</p>
+  </div>
+
+  <!-- Weather Forecast -->
+  <div class="weather-section" *ngIf="weatherForecast().length > 0">
+    <h2><i class="pi pi-cloud"></i> 5-Day Weather Forecast</h2>
+    <div class="weather-cards">
+      <p-card *ngFor="let weather of weatherForecast()" styleClass="weather-card">
+        <ng-template #header>
+          <div class="weather-date">{{ weather.date | date:'EEE, MMM d' }}</div>
+        </ng-template>
+        <ng-template #content>
+          <div class="weather-temp">{{ weather.temperature }}°C</div>
+          <div class="weather-desc">{{ weather.description }}</div>
+          <div class="weather-details">
+            <span><i class="pi pi-droplet"></i> {{ weather.humidity }}%</span>
+            <span><i class="pi pi-send"></i> {{ weather.windSpeed }} m/s</span>
+          </div>
+        </ng-template>
+      </p-card>
+    </div>
+  </div>
+
+  <!-- Traffic Information -->
+  <div class="traffic-section" *ngIf="trafficData()">
+    <h2><i class="pi pi-car"></i> Your Commute</h2>
+    <div class="traffic-widget" *ngIf="trafficData()?.available; else trafficUnavailable">
+      <p-card styleClass="traffic-card">
+        <ng-template #content>
+          <div class="traffic-content">
+            <div class="traffic-icon"><i class="pi pi-car"></i></div>
+            <div class="traffic-info">
+              <div class="traffic-time">
+                <span class="label">Travel Time:</span>
+                <span class="value">{{ trafficData()?.estimatedTravelTimeMinutes }} minutes</span>
+              </div>
+              <div class="traffic-distance">
+                <span class="label">Distance:</span>
+                <span class="value">{{ trafficData()?.distanceKm }} km</span>
+              </div>
+              <div class="traffic-level" *ngIf="trafficData()?.trafficLevel">
+                <span class="label">Traffic:</span>
+                <p-badge
+                  [value]="trafficData()?.trafficLevel"
+                  [severity]="trafficData()?.trafficLevel === 'HEAVY' ? 'danger' : 'success'"
+                ></p-badge>
+              </div>
+            </div>
+          </div>
+        </ng-template>
+      </p-card>
+    </div>
+    <ng-template #trafficUnavailable>
+      <p-message severity="warn" styleClass="w-full">
+        <ng-template #content>
+          <div>
+            <p>{{ trafficData()?.unavailableReason || 'Traffic data not available' }}</p>
+            <small>💡 Configure your home address in settings to see traffic information</small>
+          </div>
+        </ng-template>
+      </p-message>
+    </ng-template>
+  </div>
+
+  <!-- Booking Form -->
+  <div class="booking-section">
+    <p-card>
+      <ng-template #header>
+        <div class="card-header">
+          <h2><i class="pi pi-calendar-plus"></i> Find Available Seats</h2>
+        </div>
+      </ng-template>
+      <ng-template #content>
+        <div class="booking-filters">
+          <div class="form-group">
+            <label for="date">Select Date *</label>
+            <p-datepicker
+              [(ngModel)]="selectedDate"
+              [minDate]="minDate"
+              [maxDate]="maxDate"
+              (onSelect)="loadAvailableSeats(); loadWeatherForecast()"
+              dateFormat="yy-mm-dd"
+              [showIcon]="true"
+              iconDisplay="input"
+              inputId="date"
+            ></p-datepicker>
+            <small class="form-hint">You can book up to 5 days in advance</small>
+          </div>
+
+          <div class="form-group">
+            <label for="building">Building (Optional)</label>
+            <p-select
+              [(ngModel)]="selectedBuildingId"
+              (onChange)="loadAvailableSeats(); loadWeatherForecast()"
+              [options]="[
+                { label: 'All Buildings', value: undefined },
+                { label: 'T1', value: 1 },
+                { label: 'T2', value: 2 }
+              ]"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Select a building"
+              inputId="building"
+            ></p-select>
+          </div>
+
+          <div class="form-group">
+            <label for="startTime">Start Time (Optional)</label>
+            <input
+              type="time"
+              id="startTime"
+              [(ngModel)]="startTime"
+              class="p-inputtext"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="endTime">End Time (Optional)</label>
+            <input
+              type="time"
+              id="endTime"
+              [(ngModel)]="endTime"
+              class="p-inputtext"
+            />
+          </div>
+
+          <div class="form-group checkbox-group">
+            <p-checkbox
+              [(ngModel)]="bookEntireRoom"
+              [binary]="true"
+              inputId="bookRoom"
+              label="Book Entire Room"
+            ></p-checkbox>
+          </div>
+
+          <div class="form-group button-group">
+            <p-button
+              (onClick)="loadAvailableSeats()"
+              label="Search Available Seats"
+              icon="pi pi-search"
+              [loading]="loading()"
+              [disabled]="loading()"
+            ></p-button>
+          </div>
+        </div>
+
+        <!-- Error Message -->
+        <p-message *ngIf="error()" severity="error" styleClass="w-full mt-3">
+          {{ error() }}
+        </p-message>
+
+        <!-- Available Seats -->
+        <div class="seats-section" *ngIf="availableSeats().length > 0">
+          <p-divider></p-divider>
+          <h2>
+            <i class="pi pi-th-large"></i> Available Seats
+            <p-badge [value]="availableSeats().length.toString()"></p-badge>
+          </h2>
+
+          <div *ngFor="let room of groupedSeats | keyvalue" class="room-group">
+            <h3 class="room-title"><i class="pi pi-building"></i> {{ room.key }}</h3>
+            <div class="seats-grid">
+              <p-card
+                *ngFor="let seat of room.value"
+                styleClass="seat-card"
+                [class.selected]="isSeatSelected(seat.id)"
+                (click)="toggleSeatSelection(seat.id)"
+              >
+                <ng-template #content>
+                  <div class="seat-content">
+                    <div class="seat-icon"><i class="pi pi-user"></i></div>
+                    <div class="seat-info">
+                      <div class="seat-number">{{ seat.seatNumber }}</div>
+                      <div class="seat-location">
+                        {{ seat.room?.floor?.building?.name }} -
+                        {{ seat.room?.floor?.name }}
+                      </div>
+                    </div>
+                    <div class="seat-check" *ngIf="isSeatSelected(seat.id)">
+                      <i class="pi pi-check"></i>
+                    </div>
+                  </div>
+                </ng-template>
+              </p-card>
+            </div>
+          </div>
+        </div>
+
+        <!-- No Seats Available -->
+        <div class="no-seats" *ngIf="!loading() && availableSeats().length === 0 && selectedDate()">
+          <p-message severity="info" styleClass="w-full">
+            No seats available for the selected date. Please try another date.
+          </p-message>
+        </div>
+
+        <!-- Selected Seats Summary -->
+        <div class="booking-summary" *ngIf="selectedSeats().length > 0">
+          <p-card>
+            <ng-template #header>
+              <div class="summary-header">
+                <h3><i class="pi pi-check-circle"></i> Booking Summary</h3>
+              </div>
+            </ng-template>
+            <ng-template #content>
+              <div class="summary-details">
+                <p><strong>Selected Seats:</strong> {{ selectedSeats().length }}</p>
+                <p><strong>Date:</strong> {{ selectedDate() | date:'fullDate' }}</p>
+                <p *ngIf="startTime() && endTime()">
+                  <strong>Time:</strong> {{ startTime() }} - {{ endTime() }}
+                </p>
+              </div>
+              <p-button
+                (onClick)="createReservation()"
+                label="Confirm Reservation"
+                icon="pi pi-check"
+                severity="success"
+                size="large"
+                [loading]="loading()"
+                [disabled]="loading()"
+                styleClass="w-full"
+              ></p-button>
+            </ng-template>
+          </p-card>
+        </div>
+      </ng-template>
+    </p-card>
+  </div>
+</div>
